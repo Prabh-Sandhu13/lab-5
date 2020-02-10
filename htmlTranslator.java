@@ -5,6 +5,7 @@ import java.io.BufferedReader;
 import java.util.Stack;
 import java.util.Map;
 import java.util.Set;
+import java.lang.Character;
 
 public class htmlTranslator {
 	private static final String titleMarker = "title: ";
@@ -15,29 +16,37 @@ public class htmlTranslator {
 	private static final int UNDERLINE = 4;
 	private static final int ITALICIZE = 5;
 	private static final int LISTITEM = 6;
+	private static final int BOLDWORD = 7;
 
-	private static Map<Integer, String> tagConvert = Map.of( 
+	private static final Map<Integer, String> tagConvert = Map.of( 
 		  PARAGRAPH, "p"
 		, UNORDEREDLIST, "ul"
 		, BOLD, "b"
+		, BOLDWORD, "b"
 		, UNDERLINE, "u"
 		, ITALICIZE, "i" 
 		, LISTITEM, "li"
 		);
 
-	private static Map<Character, Integer> pairFormatSymbols = Map.of( 
+	private static final Map<Character, Integer> pairFormatSymbols = Map.of( 
 		  '*', BOLD
 		, '%', UNDERLINE
 		, '_', ITALICIZE
 		);
 
-	private static Map<Character, Integer> lineFormatSymbols = Map.of( 
+	private static final Map<Character, Integer> lineFormatSymbols = Map.of( 
 		  '-', LISTITEM
 		);
 
-	private static Map<Character, Integer> paragraphFormatSymbols = Map.of( 
+	private static final Map<Character, Integer> paragraphFormatSymbols = Map.of( 
 		  '-', UNORDEREDLIST
 		);
+
+	private static final Map<Character, Integer> wordFormatSymbols = Map.of( 
+		  '!', BOLDWORD
+		);
+
+	private static final Set<Integer> inlineTags = Set.of( BOLD, BOLDWORD, UNDERLINE, ITALICIZE );
 
 	private int blockStatus = NOTHING;
 	private Stack<Integer> tagList = new Stack<Integer>();
@@ -85,7 +94,12 @@ public class htmlTranslator {
 			// before continuing.
 			do {
 				theTag = tagList.pop();
-				System.out.println( "</"+tagConvert.get(theTag)+">");
+
+				if (inlineTags.contains(theTag)) {
+					System.out.print( "</"+tagConvert.get(theTag)+">");
+				} else {
+					System.out.println( "</"+tagConvert.get(theTag)+">");
+				}
 			} while ( !tagList.empty() && (theTag != lastPop) );
 		}
 	}
@@ -98,8 +112,12 @@ public class htmlTranslator {
 		Set<Character> pairCharacters = pairFormatSymbols.keySet();
 		Set<Character> lineCharacters = lineFormatSymbols.keySet();
 		Set<Character> paragraphCharacters = paragraphFormatSymbols.keySet();
+		Set<Character> wordCharacters = wordFormatSymbols.keySet();
+
 		int lineItem = NOTHING;
 		int lineStart = 0;
+		boolean inWord = false;
+		int wordOp = NOTHING;
 
 		if (line.length() > 0) {
 
@@ -122,7 +140,10 @@ public class htmlTranslator {
 			// See if we have any formatting to do as the whole line
 
 			lineItem = NOTHING;
+			inWord = false;
+			wordOp = NOTHING;
 			lineStart = 0;
+
 			if (lineCharacters.contains(theLine[0])) {
 				lineItem = lineFormatSymbols.get(theLine[0]);
 				System.out.print("<"+tagConvert.get(lineItem)+">");
@@ -140,15 +161,35 @@ public class htmlTranslator {
 					int theOperation = pairFormatSymbols.get(theLine[i]);
 					if ( theOperation ==  tagList.peek()) {
 						// Closing a new nested tag
-						System.out.print("</"+tagConvert.get(theOperation)+">");
-						tagList.pop();
+						closeTextTags( theOperation );
 					} else {
 						// Opening a new nested tag
 						System.out.print("<"+tagConvert.get(theOperation)+">");
 						tagList.push(theOperation);
 					}
+				} else if (!inWord && (wordCharacters.contains(theLine[i]))) {
+					// We have a tag that should be applied to the next word in the text
+					int theOperation = wordFormatSymbols.get(theLine[i]);
+
+					System.out.print("<"+tagConvert.get(theOperation)+">");
+					tagList.push(theOperation);
+					wordOp = theOperation;
+					
 				} else {
-					// Just a regular character, so print it.
+					// Just a regular character.  Manage formatting that applies just to one word,
+					// which requires us to remember when we are in or out of a word.
+
+					if (Character.isWhitespace( theLine[i] )) {
+						if (inWord && (wordOp != NOTHING)) {
+							// A word has ended.  If we're doing word stuff then close that off.
+							closeTextTags( wordOp );
+							wordOp = NOTHING;
+						}
+						inWord = false;
+					} else {
+						inWord = true;
+					}
+
 					System.out.print( theLine[i] );
 				}
 			}
