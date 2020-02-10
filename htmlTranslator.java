@@ -8,7 +8,6 @@ import java.util.Set;
 
 public class htmlTranslator {
 	private static final String titleMarker = "title: ";
-	private static final String listStartMarker = "-";
 	private static final int NOTHING = -1;
 	private static final int PARAGRAPH = 1;
 	private static final int UNORDEREDLIST = 2;
@@ -25,6 +24,7 @@ public class htmlTranslator {
 		, ITALICIZE, "i" 
 		, LISTITEM, "li"
 		);
+
 	private static Map<Character, Integer> pairFormatSymbols = Map.of( 
 		  '*', BOLD
 		, '%', UNDERLINE
@@ -35,11 +35,11 @@ public class htmlTranslator {
 		  '-', LISTITEM
 		);
 
-	private static final int NoPart = 1;
-	private static final int InParagraph = 2;
-	private static final int InUnorderedList = 3;
+	private static Map<Character, Integer> paragraphFormatSymbols = Map.of( 
+		  '-', UNORDEREDLIST
+		);
 
-	private int blockStatus = NoPart;
+	private int blockStatus = NOTHING;
 	private Stack<Integer> tagList = new Stack<Integer>();
 
 	// Determine if a given input line matches the format for a title
@@ -90,21 +90,6 @@ public class htmlTranslator {
 		}
 	}
 
-	// Determine whether or not a line of text is an item for a list.
-
-	private Boolean isListItem( String line ) {
-		Boolean isList = false;
-
-		// All list items are defined to start with a particular list marker 
-		// at the start of the line.
-
-		if (listStartMarker.equals(line.substring(0, 1))) {
-			isList = true;
-		}
-
-		return isList;
-	}
-
 	// Translate a single line of a file from the CMS notation to
 	// html 1.0 format.  The method uses accumulated context from
 	// previous lines, which piles up in the class' attributes.
@@ -112,28 +97,27 @@ public class htmlTranslator {
 	private void translateBodyLine( String line ) {
 		Set<Character> pairCharacters = pairFormatSymbols.keySet();
 		Set<Character> lineCharacters = lineFormatSymbols.keySet();
+		Set<Character> paragraphCharacters = paragraphFormatSymbols.keySet();
 		int lineItem = NOTHING;
 		int lineStart = 0;
 
 		if (line.length() > 0) {
-			// Check to see if we're starting any block of text in the body
-			if (blockStatus == NoPart) {
-				int toStart = PARAGRAPH; // default block of text
 
-				blockStatus = InParagraph;
-				// The only other kind of block is an unordered list.  Check for that.
-				if (isListItem(line)) {
-					toStart = UNORDEREDLIST;
-					blockStatus = InUnorderedList;
+			char[] theLine = line.toCharArray();
+
+			// Check to see if we're starting any block of text in the body
+			if (blockStatus == NOTHING) {
+				blockStatus = PARAGRAPH; // default block of text
+
+				// Check about starting some other kind of block
+				if (paragraphCharacters.contains( theLine[0] )) {
+					blockStatus = paragraphFormatSymbols.get( theLine[0] );
 				}
 
 				// Start the block with appropriate tags and record of nesting.
-				System.out.println("<"+tagConvert.get(toStart)+">");
-				tagList.push( toStart );
+				System.out.println("<"+tagConvert.get(blockStatus)+">");
+				tagList.push( blockStatus );
 			}
-
-
-			char[] theLine = line.toCharArray();
 
 			// See if we have any formatting to do as the whole line
 
@@ -224,9 +208,9 @@ public class htmlTranslator {
 				// break in style, rather than multiple empty paragraphs.
 
 				if (inputLine.length() == 0) {
-					if (blockStatus != NoPart) {
+					if (blockStatus != NOTHING) {
 						closeTextTags( NOTHING );
-						blockStatus = NoPart;
+						blockStatus = NOTHING;
 					}
 				} else {
 					translateBodyLine( inputLine );
