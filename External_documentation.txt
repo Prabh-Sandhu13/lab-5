@@ -1,0 +1,145 @@
+
+Overview
+--------
+
+This program converts a text file that has been annotated with
+formatting characters into HTML version 1.0 content.  That content
+is printed to the screen.  A summary of the formatting requirements
+are in the csci 3901 course assignment #1 information in the course's
+brightspace space.
+
+The solution uses several important divisions between the kinds of
+information in the input file:
+
+- the HTML header consists of at most one line of input; the rest
+  of the text is HTML body
+- the HTML body consists of either paragraphs or unordered lists,
+  separated by each other by a blank line
+- formatting comes as either formatting where the start and end
+  pairs are given and can span lines, where the formatting ends at
+  the end of the line, or formatting that applies to a single word.
+
+Each of the formatting cases have their own code to process the
+case and each of their outputs is driven by the content of a Map.A
+
+To add a new kind of formatting:
+  - create a new constant to represent the formatting at the top of the class
+  - include the formatting character and the new constant in the
+    relevant map of wordFormatSymbols, lineFormatSymbols, or
+    pairFormatSymbols.
+  - if the formatting character is mean to also start a new block
+    of text like a paragraph or list, include the symbol in the
+    paragraphFormatSymbols map.
+  - include the corresponding HTML in the tagConvert map
+  - if the tags are to end at the end of a list or paragraph, include
+    the tags inthe inlineTags map
+
+Files and external data
+-----------------------
+
+There are two main files:
+  - convert.java  -- main for the program that prompts the user for the file name
+  - htmlTranslator.java -- class that makes the actual conversion of text
+
+Data structures and their relations to each other
+-------------------------------------------------
+
+The program encodes the formatting characters in a set of maps.
+Each map uses the formatting character as the key and an internal
+identifier for the type of formatting as the value.
+
+  pairFormatSymbols -- formatting where we specify the start and 
+             end of the formatting.  Can appear anywhere in a line 
+             and can span several lines of text (but not span 
+             paragraphs)
+  lineFormatSymbols -- formatting that applies to a single input 
+             line and that must be closed implicitly at the end of 
+             the line
+  wordFormatSymbols -- formatting that applies to the next word of 
+             the input text
+
+The program encodes the knowledge of when to start a new block of
+text in a map, whose key is the formatting character that starts
+the map and whose value is an internal identifier.
+
+  paragraphFormatSymbols -- format characters that start a new block 
+             of HTML text
+
+The program uses one map to specify the HTML output tags.  The key
+is the internal formatting type and the value is the HTML tag used
+to represent the formatting
+
+  tagConvert -- the pairing of internal formatting types and the HTML 
+             tags to which they correspond
+
+The program uses a map to record all of the formatting that
+can span several lines.  Ideally, this structure would be a set,
+but I had difficulty in initializing it cleanly, so it is currently
+a map whose keys are the set I want and whose value is something
+that the program ignores.
+
+  inlineTags
+
+Last, the program uses a Stack of formatting types called tagList,
+to track what formatting has been done so far in the paragraph or
+list.  Formatting should be closed in the order from which they
+would come off the stack.
+
+Assumptions
+-----------
+
+  - multiple blank lines are treated as if a single blank line.
+    Both are separators between blocks of HTML text.
+  - the user is intentional.  They know which tags should be paired
+    to be opened and closed together.  A consequence is that when
+    tags appear in different orders then I assume that the user meant
+    to do so and was nesting tags intentionally.
+
+Choices
+-------
+
+  - if a user applies a word formatting multiple times, I will just 
+    print a single tag for the word.
+  - I will always print <html> tags in the output
+  - I will only print a <head> block if there is some metadata to 
+    provide
+  - I will only print a <body> block if there is a body to provide
+
+Key algorithms and design elements
+----------------------------------
+
+The program processes the input file one line at a time.  In the
+output, it looks to preserve the same line breaks, for convenience
+of someone looking at the output file.
+
+The program consumes all leading blank lines as noise.  Finding the
+first blank line, it determines whether or not it is a header line
+and formats that according to the assignment specifications.
+
+In processing the body, the program assumes that a blank line starts
+a paragraph unless otherwise indicated.  Other blocks, like a list,
+are recognized by a leading character in column 1 of the string.
+
+Given a string, starts by seeing of a new block of text is started
+(paragraph or list).  Next, it tests whether the string is starting
+a new line-specific formatting, like a list item.  Finally, the
+program walks through the string character-by-character and produces
+formatting as it goes, printing that formatting or the character
+to the screen immediately before proceeding to the next character.
+That processing checks the data for one of 3 cases:  either the
+character is starting some pair-based formatting, the character is
+starting a word-only formatting, or the character is text to print
+to the screen.
+
+
+Limitations
+-----------
+
+The current design is limited to a single header line for the HTML
+file.
+
+My assumption around formatting and the subsequent use of a character
+map limits the formatting to be a single character.  The line
+processing would need revisions if we wanted more complex formatting
+characters.
+
