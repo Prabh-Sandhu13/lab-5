@@ -4,7 +4,9 @@ import java.io.InputStream;
 import java.io.BufferedReader;
 import java.util.Stack;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.Set;
+import java.util.HashSet;
 import java.lang.Character;
 
 public class htmlTranslator {
@@ -23,37 +25,42 @@ public class htmlTranslator {
 
 	private static final String titleMarker = "title: ";
 
-	private static final Map<Character, Integer> pairFormatSymbols = Map.of( 
-		  '*', BOLD
-		, '%', UNDERLINE
-		, '_', ITALICIZE
-		);
+	private static final Map<Character, Integer> pairFormatSymbols = new HashMap<Character, Integer>() {{
+		put( '*', BOLD );
+		put( '%', UNDERLINE );
+		put( '_', ITALICIZE );
+	}};
 
-	private static final Map<Character, Integer> lineFormatSymbols = Map.of( 
-		  '-', LISTITEM
-		);
+	private static final Map<Character, Integer> lineFormatSymbols = new HashMap<Character, Integer>() {{
+		put( '-', LISTITEM );
+	}};
 
-	private static final Map<Character, Integer> paragraphFormatSymbols = Map.of( 
-		  '-', UNORDEREDLIST
-		);
+	private static final Map<Character, Integer> paragraphFormatSymbols = new HashMap<Character, Integer>() {{
+		put( '-', UNORDEREDLIST );
+	}};
 
-	private static final Map<Character, Integer> wordFormatSymbols = Map.of( 
-		  '!', BOLDWORD
-		);
+	private static final Map<Character, Integer> wordFormatSymbols = new HashMap<Character, Integer>() {{
+		put( '!', BOLDWORD );
+	}};
 
 	// Define how the internal symbols should map to HTML tags.
 
-	private static final Map<Integer, String> tagConvert = Map.of( 
-		  PARAGRAPH, "p"
-		, UNORDEREDLIST, "ul"
-		, BOLD, "b"
-		, BOLDWORD, "b"
-		, UNDERLINE, "u"
-		, ITALICIZE, "i" 
-		, LISTITEM, "li"
-		);
+	private static final Map<Integer, String> tagConvert = new HashMap<Integer, String>() {{
+		put( PARAGRAPH, "p" );
+		put( UNORDEREDLIST, "ul" );
+		put( BOLD, "b" );
+		put( BOLDWORD, "b" );
+		put( UNDERLINE, "u" );
+		put( ITALICIZE, "i"  );
+		put( LISTITEM, "li" );
+	}};
 
-	private static final Set<Integer> inlineTags = Set.of( BOLD, BOLDWORD, UNDERLINE, ITALICIZE );
+	private static final Map<Integer, Boolean> inlineTags = new HashMap<Integer, Boolean>() {{
+		put( BOLD, true );
+		put( BOLDWORD, true );
+		put( UNDERLINE, true );
+		put( ITALICIZE, true );
+	}};
 
 	// Start the actual storage for the class.  These are variables that let us track
 	// what we have seen so far in the input file relative to HTML structures.
@@ -102,6 +109,7 @@ public class htmlTranslator {
 
 	private void closeTextTags( int lastPop ) {
 		int theTag;
+		Set<Integer> inlineTagsKeys = inlineTags.keySet();
 
 		if (!tagList.empty()) {
 			// We're now given that there must be some tag for us to close, which
@@ -110,7 +118,7 @@ public class htmlTranslator {
 			do {
 				theTag = tagList.pop();
 
-				if (inlineTags.contains(theTag)) {
+				if (inlineTagsKeys.contains(theTag)) {
 					System.out.print( "</"+tagConvert.get(theTag)+">");
 				} else {
 					System.out.println( "</"+tagConvert.get(theTag)+">");
