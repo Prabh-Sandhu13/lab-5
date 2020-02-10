@@ -8,7 +8,8 @@ import java.util.Set;
 import java.lang.Character;
 
 public class htmlTranslator {
-	private static final String titleMarker = "title: ";
+	// Define symbols to use within the program as a way of knowing what we're seeing in the text.
+
 	private static final int NOTHING = -1;
 	private static final int PARAGRAPH = 1;
 	private static final int UNORDEREDLIST = 2;
@@ -18,15 +19,9 @@ public class htmlTranslator {
 	private static final int LISTITEM = 6;
 	private static final int BOLDWORD = 7;
 
-	private static final Map<Integer, String> tagConvert = Map.of( 
-		  PARAGRAPH, "p"
-		, UNORDEREDLIST, "ul"
-		, BOLD, "b"
-		, BOLDWORD, "b"
-		, UNDERLINE, "u"
-		, ITALICIZE, "i" 
-		, LISTITEM, "li"
-		);
+	// Define maps of what we will see in the actual text and what they are in our internal symbols.
+
+	private static final String titleMarker = "title: ";
 
 	private static final Map<Character, Integer> pairFormatSymbols = Map.of( 
 		  '*', BOLD
@@ -46,10 +41,29 @@ public class htmlTranslator {
 		  '!', BOLDWORD
 		);
 
+	// Define how the internal symbols should map to HTML tags.
+
+	private static final Map<Integer, String> tagConvert = Map.of( 
+		  PARAGRAPH, "p"
+		, UNORDEREDLIST, "ul"
+		, BOLD, "b"
+		, BOLDWORD, "b"
+		, UNDERLINE, "u"
+		, ITALICIZE, "i" 
+		, LISTITEM, "li"
+		);
+
 	private static final Set<Integer> inlineTags = Set.of( BOLD, BOLDWORD, UNDERLINE, ITALICIZE );
+
+	// Start the actual storage for the class.  These are variables that let us track
+	// what we have seen so far in the input file relative to HTML structures.
 
 	private int blockStatus = NOTHING;
 	private Stack<Integer> tagList = new Stack<Integer>();
+	private int lineItem = NOTHING;
+	private int wordOp = NOTHING;
+
+
 
 	// Determine if a given input line matches the format for a title
 	// for the document;
@@ -60,7 +74,8 @@ public class htmlTranslator {
 		// Start with the simple requirement that the title
 		// keyword must start the line.
 
-		if ((line.length() >= titleMarker.length()) && (titleMarker.equals(line.substring(0, titleMarker.length())))) {
+		if ((line.length() >= titleMarker.length()) && 
+		    (titleMarker.equals(line.substring(0, titleMarker.length())))) {
 			titleLine = true;
 		}
 
@@ -104,53 +119,75 @@ public class htmlTranslator {
 		}
 	}
 
+	// Determine if we are starting a new block of text with a given line and,
+	// if yes, start the appropriate block tags for the output.
+
+	private void checkBlockStart( char[] theLine ) {
+		Set<Character> paragraphCharacters = paragraphFormatSymbols.keySet();
+
+		if (blockStatus == NOTHING) {
+			blockStatus = PARAGRAPH; // default block of text
+
+			// Check about starting some other kind of block
+			if (paragraphCharacters.contains( theLine[0] )) {
+				blockStatus = paragraphFormatSymbols.get( theLine[0] );
+			}
+
+			// Start the block with appropriate tags and record of nesting.
+			System.out.println("<"+tagConvert.get(blockStatus)+">");
+			tagList.push( blockStatus );
+		}
+	}
+
+	// Determine if a new line that we're starting needs any line-level formatting.
+	// Return the character in the input line where the meaningful text of the line
+	// actually starts.
+
+	private int checkLineStart( char[] theLine ) {
+		int lineStart = 0;
+		Set<Character> lineCharacters = lineFormatSymbols.keySet();
+
+		// Assume that the line isn't anything special
+
+		lineItem = NOTHING;
+
+		if (lineCharacters.contains(theLine[0])) {
+			// We're seeing a special start to the line.  Designiate
+			// that line grouping in the output and skip over
+			// the leading symbol of the line for the rest of the text.
+
+			lineItem = lineFormatSymbols.get(theLine[0]);
+			System.out.print("<"+tagConvert.get(lineItem)+">");
+			tagList.push( lineItem );
+			lineStart = 1;
+		}
+
+		return lineStart;
+	}
+
 	// Translate a single line of a file from the CMS notation to
 	// html 1.0 format.  The method uses accumulated context from
 	// previous lines, which piles up in the class' attributes.
 
 	private void translateBodyLine( String line ) {
 		Set<Character> pairCharacters = pairFormatSymbols.keySet();
-		Set<Character> lineCharacters = lineFormatSymbols.keySet();
-		Set<Character> paragraphCharacters = paragraphFormatSymbols.keySet();
 		Set<Character> wordCharacters = wordFormatSymbols.keySet();
 
-		int lineItem = NOTHING;
 		int lineStart = 0;
 		boolean inWord = false;
-		int wordOp = NOTHING;
 
 		if (line.length() > 0) {
 
 			char[] theLine = line.toCharArray();
 
 			// Check to see if we're starting any block of text in the body
-			if (blockStatus == NOTHING) {
-				blockStatus = PARAGRAPH; // default block of text
-
-				// Check about starting some other kind of block
-				if (paragraphCharacters.contains( theLine[0] )) {
-					blockStatus = paragraphFormatSymbols.get( theLine[0] );
-				}
-
-				// Start the block with appropriate tags and record of nesting.
-				System.out.println("<"+tagConvert.get(blockStatus)+">");
-				tagList.push( blockStatus );
-			}
+			checkBlockStart( theLine );
 
 			// See if we have any formatting to do as the whole line
 
-			lineItem = NOTHING;
+			lineStart = checkLineStart( theLine );
 			inWord = false;
-			wordOp = NOTHING;
-			lineStart = 0;
 
-			if (lineCharacters.contains(theLine[0])) {
-				lineItem = lineFormatSymbols.get(theLine[0]);
-				System.out.print("<"+tagConvert.get(lineItem)+">");
-				tagList.push( lineItem );
-				lineStart = 1;
-			}
-		
 			// Now handle the line itself.
 
 			for (int i = lineStart; i < theLine.length; i++) {
@@ -169,11 +206,15 @@ public class htmlTranslator {
 					}
 				} else if (!inWord && (wordCharacters.contains(theLine[i]))) {
 					// We have a tag that should be applied to the next word in the text
+					// As word tags, treat several of the same indicator to one word
+					// as just one instance
 					int theOperation = wordFormatSymbols.get(theLine[i]);
 
-					System.out.print("<"+tagConvert.get(theOperation)+">");
-					tagList.push(theOperation);
-					wordOp = theOperation;
+					if (!tagList.empty() && theOperation != tagList.peek()) {
+						System.out.print("<"+tagConvert.get(theOperation)+">");
+						tagList.push(theOperation);
+						wordOp = theOperation;
+					}
 					
 				} else {
 					// Just a regular character.  Manage formatting that applies just to one word,
@@ -218,64 +259,69 @@ public class htmlTranslator {
 
 			System.out.println("<html>");
 
-			// Ignore any leading blank lines
-
-			while ( ((inputLine = userfile.readLine()) != null) &&
-			        (inputLine.length() == 0)) {
-				// Do nothing but consume the line
-			}
-
-			// We have a line in memory.  Check for a title line.
-			// Process it and then bring in the next line of
-			// the file so the upcoming while loop always has
-			// a line already loaded.
-
-			if (isTitleLine( inputLine )) {
-				translateTitleLine( inputLine );
-				inputLine = userfile.readLine();
-			}
-
-			// Know that we will have some web page body, even if empty.
-			// Start that part of the document.
-
-			System.out.println("<body>");
-
-			// Iterate through the body of the file, one line at a time.
-			// Recall that we already have one line in memory.
-
-			while ( inputLine != null) {
-				// Blank lines signal a transition.  Close whatever we're in.
-				// Make the choice that multiple blank lines in a row will represent a 
-				// break in style, rather than multiple empty paragraphs.
-
-				if (inputLine.length() == 0) {
-					if (blockStatus != NOTHING) {
-						closeTextTags( NOTHING );
-						blockStatus = NOTHING;
-					}
-				} else {
-					translateBodyLine( inputLine );
+			try {
+				// Ignore any leading blank lines
+	
+				while ( ((inputLine = userfile.readLine()) != null) &&
+			        	(inputLine.length() == 0)) {
+					// Do nothing but consume the line
 				}
 
-				inputLine = userfile.readLine();
+				// We have a line in memory.  Check for a title line.
+				// Process it and then bring in the next line of
+				// the file so the upcoming while loop always has
+				// a line already loaded.
+
+				if (isTitleLine( inputLine )) {
+					translateTitleLine( inputLine );
+					inputLine = userfile.readLine();
+				}
+
+				// Know that we will have some web page body, even if empty.
+				// Start that part of the document.
+
+				System.out.println("<body>");
+
+				// Iterate through the body of the file, one line at a time.
+				// Recall that we already have one line in memory.
+
+				while ( inputLine != null) {
+					// Blank lines signal a transition.  Close whatever we're in.
+					// Make the choice that multiple blank lines in a row will represent a 
+					// break in style, rather than multiple empty paragraphs.
+	
+					if (inputLine.length() == 0) {
+						if (blockStatus != NOTHING) {
+							closeTextTags( NOTHING );
+							blockStatus = NOTHING;
+						}
+					} else {
+						translateBodyLine( inputLine );
+					}
+	
+					inputLine = userfile.readLine();
+				}
+
+				// Close any outstanding paragraph or list tags.
+
+				closeTextTags( NOTHING );
+
+				// Close the body tags
+				System.out.println("</body>");
+
+			} catch (Exception e) {
 			}
 
-			// Close any outstanding paragraph or list tags.
-
-			closeTextTags( NOTHING );
-
-			// Close the body and HTML tags
-
-			System.out.println("</body>\n</html>");
+			// Close the body tags
+			System.out.println("</html>");
 		} catch (Exception e) {
-			System.out.println( e.getMessage() );
+			System.out.println( "Error in processing the file." );
 		} finally {
 			// Close the file, if it was opened.
 
 			try {
 				userfile.close();
 			} catch (Exception error) {
-				System.out.println( error.getMessage() );
 			}
 		}
 	}
