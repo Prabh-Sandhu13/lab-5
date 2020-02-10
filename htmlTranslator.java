@@ -4,12 +4,31 @@ import java.io.InputStream;
 import java.io.BufferedReader;
 import java.util.Stack;
 import java.util.Map;
+import java.util.Set;
 
 public class htmlTranslator {
 	private static final String titleMarker = "title: ";
 	private static final String listStartMarker = "-";
 	private static final int PARAGRAPH = 1;
 	private static final int UNORDEREDLIST = 2;
+	private static final int BOLD = 3;
+	private static final int UNDERLINE = 4;
+	private static final int ITALICIZE = 5;
+	private static final int LISTITEM = 6;
+
+	private static Map<Integer, String> tagConvert = Map.of( 
+		  PARAGRAPH, "p"
+		, UNORDEREDLIST, "ul"
+		, BOLD, "b"
+		, UNDERLINE, "u"
+		, ITALICIZE, "i" 
+		, LISTITEM, "li"
+		);
+	private static Map<Character, Integer> pairFormatSymbols = Map.of( 
+		  '*', BOLD
+		, '%', UNDERLINE
+		, '_', ITALICIZE
+		);
 
 	private static final int NoPart = 1;
 	private static final int InParagraph = 2;
@@ -17,7 +36,6 @@ public class htmlTranslator {
 
 	private int blockStatus = NoPart;
 	private Stack<Integer> tagList = new Stack<Integer>();
-	private Map<Integer, String> tagConvert = Map.of( PARAGRAPH, "p", UNORDEREDLIST, "ul");
 
 	// Determine if a given input line matches the format for a title
 	// for the document;
@@ -76,6 +94,7 @@ public class htmlTranslator {
 	// previous lines, which piles up in the class' attributes.
 
 	private void translateBodyLine( String line ) {
+		Set<Character> pairCharacters = pairFormatSymbols.keySet();
 		if (line.length() > 0) {
 			// Check to see if we're starting any block of text in the body
 			if (blockStatus == NoPart) {
@@ -95,7 +114,28 @@ public class htmlTranslator {
 
 			// Now handle the line itself.
 
-			System.out.println( line );
+			char[] theLine = line.toCharArray();
+			for (int i = 0; i < theLine.length; i++) {
+				if (pairCharacters.contains(theLine[i])) {
+					// Assume that the user is intentional, so they'll open and
+					// close pairs of tags in proper order, as best they can.
+
+					int theOperation = pairFormatSymbols.get(theLine[i]);
+					if ( theOperation ==  tagList.peek()) {
+						// Closing a new nested tag
+						System.out.print("</"+tagConvert.get(theOperation)+">");
+						tagList.pop();
+					} else {
+						// Opening a new nested tag
+						System.out.print("<"+tagConvert.get(theOperation)+">");
+						tagList.push(theOperation);
+					}
+				} else {
+					// Just a regular character, so print it.
+					System.out.print( theLine[i] );
+				}
+			}
+			System.out.println( );
 		}
 	}
 
