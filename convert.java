@@ -2,25 +2,32 @@ import java.util.Scanner;
 
 public class convert {
 	public static void main( String[] args ) {
-		String filename;
+		String filename = new String();
 		Scanner userInput = new Scanner( System.in );
 		htmlTranslator translate = new htmlTranslator();
 
-		// Get the filename from the user
+		// Repeatedly get files to convert until the user says "quit"
 
-		System.out.println( "filename? " );
-		filename = userInput.next();
-		userInput.close();
+		while (!filename.equalsIgnoreCase("quit")) {
 
-		// Ensure that the user provided some input.  Using a scanner,
-		// the system should keep asking for input until it gets 
-		// something.
+			// Get the filename from the user
 
-		if (filename.length() > 0) {
-			translate.translateFile( filename );
-		} else {
-			System.out.println( "No filename provided." );
+			System.out.println( "filename? " );
+			filename = userInput.next();
+
+			// Ensure that the user provided some input.  Using a scanner,
+			// the system should keep asking for input until it gets 
+			// something.
+	
+			if (filename.length() > 0) {
+				translate.translateFile( filename );
+			} else {
+				System.out.println( "No filename provided." );
+			}
 		}
+
+		// Close the input stream
+		userInput.close();
 	}
 }
 
