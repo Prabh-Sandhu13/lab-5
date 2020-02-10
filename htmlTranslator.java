@@ -9,6 +9,7 @@ import java.util.Set;
 public class htmlTranslator {
 	private static final String titleMarker = "title: ";
 	private static final String listStartMarker = "-";
+	private static final int NOTHING = -1;
 	private static final int PARAGRAPH = 1;
 	private static final int UNORDEREDLIST = 2;
 	private static final int BOLD = 3;
@@ -28,6 +29,10 @@ public class htmlTranslator {
 		  '*', BOLD
 		, '%', UNDERLINE
 		, '_', ITALICIZE
+		);
+
+	private static Map<Character, Integer> lineFormatSymbols = Map.of( 
+		  '-', LISTITEM
 		);
 
 	private static final int NoPart = 1;
@@ -67,10 +72,21 @@ public class htmlTranslator {
 	}
 
 	// Close all tags of a paragraph or an unordered list as if that block is ending.
+	// Indicate what should be the last tag removed from the list to stop early if we
+	// want to just close tags up to some point in the stack for proper nesting.
+	// send the value of NOTHING if you want to empty the stack.
 
-	private void closeTextTags() {
-		while (!tagList.empty()) {
-			System.out.println( "</"+tagConvert.get(tagList.pop())+">");
+	private void closeTextTags( int lastPop ) {
+		int theTag;
+
+		if (!tagList.empty()) {
+			// We're now given that there must be some tag for us to close, which
+			// lets us do a do...while loop so we can check the last item out
+			// before continuing.
+			do {
+				theTag = tagList.pop();
+				System.out.println( "</"+tagConvert.get(theTag)+">");
+			} while ( !tagList.empty() && (theTag != lastPop) );
 		}
 	}
 
@@ -95,6 +111,10 @@ public class htmlTranslator {
 
 	private void translateBodyLine( String line ) {
 		Set<Character> pairCharacters = pairFormatSymbols.keySet();
+		Set<Character> lineCharacters = lineFormatSymbols.keySet();
+		int lineItem = NOTHING;
+		int lineStart = 0;
+
 		if (line.length() > 0) {
 			// Check to see if we're starting any block of text in the body
 			if (blockStatus == NoPart) {
@@ -112,10 +132,23 @@ public class htmlTranslator {
 				tagList.push( toStart );
 			}
 
-			// Now handle the line itself.
 
 			char[] theLine = line.toCharArray();
-			for (int i = 0; i < theLine.length; i++) {
+
+			// See if we have any formatting to do as the whole line
+
+			lineItem = NOTHING;
+			lineStart = 0;
+			if (lineCharacters.contains(theLine[0])) {
+				lineItem = lineFormatSymbols.get(theLine[0]);
+				System.out.print("<"+tagConvert.get(lineItem)+">");
+				tagList.push( lineItem );
+				lineStart = 1;
+			}
+		
+			// Now handle the line itself.
+
+			for (int i = lineStart; i < theLine.length; i++) {
 				if (pairCharacters.contains(theLine[i])) {
 					// Assume that the user is intentional, so they'll open and
 					// close pairs of tags in proper order, as best they can.
@@ -135,7 +168,14 @@ public class htmlTranslator {
 					System.out.print( theLine[i] );
 				}
 			}
-			System.out.println( );
+
+			// If we were in a line item, close that one properly.
+
+			if (lineItem != NOTHING) {
+				closeTextTags( lineItem );
+			} else {
+				System.out.println( );
+			}
 		}
 	}
 
@@ -185,7 +225,7 @@ public class htmlTranslator {
 
 				if (inputLine.length() == 0) {
 					if (blockStatus != NoPart) {
-						closeTextTags();
+						closeTextTags( NOTHING );
 						blockStatus = NoPart;
 					}
 				} else {
@@ -197,7 +237,7 @@ public class htmlTranslator {
 
 			// Close any outstanding paragraph or list tags.
 
-			closeTextTags();
+			closeTextTags( NOTHING );
 
 			// Close the body and HTML tags
 
